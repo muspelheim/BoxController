@@ -24,7 +24,7 @@ int numberOfLedPixels = 24;
 //   NEO_GRB     Pixels are wired for GRB bitstream (most NeoPixel products)
 //   NEO_RGB     Pixels are wired for RGB bitstream (v1 FLORA pixels, not v2)
 //   NEO_RGBW    Pixels are wired for RGBW bitstream (NeoPixel RGBW products)
-Adafruit_NeoPixel strip = Adafruit_NeoPixel(numberOfLedPixels4, PIN, NEO_GRB + NEO_KHZ800);
+Adafruit_NeoPixel strip = Adafruit_NeoPixel(numberOfLedPixels, PIN, NEO_GRB + NEO_KHZ800);
 
 //Setup runned once
 void setup() 
@@ -41,11 +41,13 @@ void setup()
 void loop() 
 { 
   if(isAlreadyInited < 1) {
-    for(int i=0;i<numberOfLedPixels;i++)
+    
+    for(int i=0; i<numberOfLedPixels; i++)
     {
       // 220-20-60 is a red color
       strip.setPixelColor(i, strip.Color(220, 20, 60));
     } 
+    
     strip.show();
 
     for(servoPosition = 90; servoPosition <= 180; servoPosition += 1)
@@ -57,7 +59,6 @@ void loop()
     servo.detach();
 
     isAlreadyInited = 1;
-
     // 65% strip brightness after opening
     strip.setBrightness(65);
   }
