@@ -1,5 +1,9 @@
 #include <Adafruit_NeoPixel.h>
 #include <Servo.h>
+#include <ESP8266WiFi.h>
+#include <WiFiClient.h>
+#include <ESP8266WebServer.h>
+#include <ESP8266mDNS.h>
 
 #ifdef __AVR__
   #include <avr/power.h>
@@ -7,9 +11,9 @@
 
 #define PIN D3 // D3 is a pin for LED Strip
 
-//Create new servo object to control box open/close
-Servo servo;
-
+//FILL REAL VALUES
+const char* ssid = "Muspelheim";
+const char* password = "******";
 
 int servoPosition = 0;
 int servoPin = 2; // Arduino GIO2 equal D4 ESP Pin
@@ -26,12 +30,36 @@ int numberOfLedPixels = 24;
 //   NEO_RGBW    Pixels are wired for RGBW bitstream (NeoPixel RGBW products)
 Adafruit_NeoPixel strip = Adafruit_NeoPixel(numberOfLedPixels, PIN, NEO_GRB + NEO_KHZ800);
 
+//Create new servo object to control box open/close
+Servo servo;
+
+//Create new web server instance
+ESP8266WebServer server(80);
+
 //Setup runned once
 void setup() 
 { 
   strip.setBrightness(100);
   strip.begin();
   strip.show();
+
+  //Connect to wifi
+  WiFi.mode(WIFI_STA);
+  WiFi.begin(ssid, password);
+
+  server.onNotFound(handleRoot);
+  server.on("/", handleRoot);
+  server.on("/open", [](){
+    openBox();
+    server.send(200, "text/plain", "box open");
+  });
+
+  server.on("/close", [](){
+    closeBox();
+    server.send(200, "text/plain", "box open");
+  });
+
+  server.begin();
 
   rainbowCycle(5); //first cycle before servo (change color every 5ms)
   servo.attach(servoPin);  // attaches the servo on GIO2 to the servo object 
@@ -41,15 +69,35 @@ void setup()
 void loop() 
 { 
   if(isAlreadyInited < 1) {
-    
-    for(int i=0; i<numberOfLedPixels; i++)
+    for(int i=0;i<numberOfLedPixels;i++)
     {
       // 220-20-60 is a red color
       strip.setPixelColor(i, strip.Color(220, 20, 60));
     } 
-    
     strip.show();
 
+    //moved to custom function
+    openBox();
+
+    isAlreadyInited = 1;
+
+    // 65% strip brightness after opening
+    strip.setBrightness(65);
+  }
+
+  server.handleClient();
+  
+  rainbowCycle(20);
+} 
+
+//------------------------------ SERVO OPEN/CLOSE -----------------------------
+int boxOpened = 0;
+
+void openBox() {
+  if(boxOpened == 0)
+  {
+    servo.attach(servoPin);  // attaches the servo on GIO2 to the servo object 
+    
     for(servoPosition = 90; servoPosition <= 180; servoPosition += 1)
     {
       servo.write(102); //servo speed (slow)
@@ -58,13 +106,32 @@ void loop()
   
     servo.detach();
 
-    isAlreadyInited = 1;
-    // 65% strip brightness after opening
-    strip.setBrightness(65);
+    boxOpened = 1;
   }
+}
 
-  rainbowCycle(20);
-} 
+void closeBox() {
+  if(boxOpened == 1)
+  {
+    servo.attach(servoPin);  // attaches the servo on GIO2 to the servo object 
+    
+    for(servoPosition = 90; servoPosition <= 180; servoPosition += 1)
+    {
+      servo.write(78); //servo speed (slow)
+      delay(35); // send SIGNAL 35 ms
+    } 
+  
+    servo.detach();
+
+    boxOpened = 0;
+  }
+}
+
+//------------------------------ WEB SERVER -----------------------------------
+void handleRoot() {
+  server.send(200, "text/html", "<p><a href='/open'>Open Box</a></p><p><a href='/close'>Close Box</a></p>");
+}
+
 
 //--------------------------------- LED ---------------------------------------
 void rainbow(uint8_t wait) {
@@ -88,6 +155,8 @@ void rainbowCycle(uint8_t wait) {
     }
     strip.show();
     delay(wait);
+
+    server.handleClient();
   }
 }
 
