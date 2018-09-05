@@ -4,6 +4,7 @@
 #include <WiFiClient.h>
 #include <ESP8266WebServer.h>
 #include <ESP8266mDNS.h>
+#include <PubSubClient.h>
 
 #ifdef __AVR__
   #include <avr/power.h>
@@ -14,6 +15,10 @@
 //FILL REAL VALUES
 const char* ssid = "Muspelheim";
 const char* password = "******";
+
+const char* mqtt_server = "192.168.0.170";
+const char* mqtt_user = "******";
+const char* mqtt_password = "******";
 
 int servoPosition = 0;
 int servoPin = 2; // Arduino GIO2 equal D4 ESP Pin
@@ -29,12 +34,13 @@ int numberOfLedPixels = 24;
 //   NEO_RGB     Pixels are wired for RGB bitstream (v1 FLORA pixels, not v2)
 //   NEO_RGBW    Pixels are wired for RGBW bitstream (NeoPixel RGBW products)
 Adafruit_NeoPixel strip = Adafruit_NeoPixel(numberOfLedPixels, PIN, NEO_GRB + NEO_KHZ800);
-
 //Create new servo object to control box open/close
 Servo servo;
-
 //Create new web server instance
 ESP8266WebServer server(80);
+//Pub-Sub CLient
+WiFiClient espClient;
+PubSubClient pubSubClient(espClient);
 
 //Setup runned once
 void setup() 
@@ -46,6 +52,9 @@ void setup()
   //Connect to wifi
   WiFi.mode(WIFI_STA);
   WiFi.begin(ssid, password);
+
+  pubSubClient.setServer(mqtt_server, 1883);
+  pubSubClient.setCallback(pubSubCallback);
 
   server.onNotFound(handleRoot);
   server.on("/", handleRoot);
@@ -69,6 +78,8 @@ void setup()
 void loop() 
 { 
   if(isAlreadyInited < 1) {
+    connectPubSubAndProducePayload();
+    
     for(int i=0;i<numberOfLedPixels;i++)
     {
       // 220-20-60 is a red color
@@ -89,6 +100,35 @@ void loop()
   
   rainbowCycle(20);
 } 
+
+//------------------------------ PUB-SUB Logic -----------------------------
+long lastReconnectAttempt = 0;
+
+boolean pubSubReconnect() {
+  if (pubSubClient.connect("WeddingBox", mqtt_user, mqtt_password)) {
+    // Once connected, publish an announcement...
+    pubSubClient.publish("wedding/proposal-box/start","on");
+  }
+}
+
+void connectPubSubAndProducePayload() {
+  if (!pubSubClient.connected()) {
+    long now = millis();
+    if (now - lastReconnectAttempt > 5000) {
+      lastReconnectAttempt = now;
+      // Attempt to reconnect
+      if (pubSubReconnect()) {
+        lastReconnectAttempt = 0;
+      }
+    }
+  } else {
+    pubSubClient.loop();
+  }
+}
+
+void pubSubCallback(char* topic, byte* payload, unsigned int length) {
+  // handle message arrived
+}
 
 //------------------------------ SERVO OPEN/CLOSE -----------------------------
 int boxOpened = 0;
